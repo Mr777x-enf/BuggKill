@@ -45,6 +45,28 @@ const createMessagePair = async (sessionId, question, answer) => {
             [sessionId, answer]
         );
 
+        await client.query(
+            `
+            UPDATE repositories
+            SET title = COALESCE(
+                    NULLIF(BTRIM(title), ''),
+                    LEFT(BTRIM($2), 80)
+                ),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE session_id = $1
+              AND NOT EXISTS (
+                  SELECT 1 FROM messages
+                  WHERE session_id = $1 AND role = 'user'
+                    AND id < $3::bigint
+              )
+            `,
+            [sessionId, question.trim(), userMessage.rows[0].id]
+        );
+        await client.query(
+            "UPDATE repositories SET updated_at = CURRENT_TIMESTAMP WHERE session_id = $1",
+            [sessionId]
+        );
+
         await client.query("COMMIT");
 
         return [userMessage.rows[0], assistantMessage.rows[0]];
@@ -70,7 +92,7 @@ const getMessagesBySession = async (sessionId) => {
             created_at
         FROM messages
         WHERE session_id = $1
-        ORDER BY created_at ASC
+        ORDER BY created_at ASC, id ASC
         `,
         [sessionId]
     );
@@ -106,7 +128,9 @@ const getSessionForUser = async (sessionId, userId) => {
             repo_link,
             session_id,
             commit_sha,
-            ingestion_status
+            ingestion_status,
+            title,
+            updated_at
         FROM repositories
         WHERE session_id = $1
         AND user_id = $2
@@ -127,7 +151,9 @@ const getSessionsForUser = async (userId) => {
             r.repo_link,
             r.commit_sha,
             r.ingestion_status,
+            r.title,
             r.created_at,
+            r.updated_at,
             COALESCE(
                 (SELECT MAX(m.created_at)
                  FROM messages m
@@ -149,6 +175,46 @@ const getSessionsForUser = async (userId) => {
     return result.rows;
 };
 
+const renameSession = async (sessionId, userId, title) => {
+    const result = await db.query(
+        `
+        UPDATE repositories
+        SET title = $3, updated_at = CURRENT_TIMESTAMP
+        WHERE session_id = $1 AND user_id = $2
+        RETURNING session_id, title, updated_at
+        `,
+        [sessionId, userId, title]
+    );
+    return result.rows[0];
+};
+
+const deleteSession = async (sessionId, userId) => {
+    const result = await db.query(
+        `
+        DELETE FROM repositories
+        WHERE session_id = $1 AND user_id = $2
+        RETURNING id
+        `,
+        [sessionId, userId]
+    );
+    if (result.rowCount) await deleteMessagesBySession(sessionId);
+    return result.rowCount;
+};
+
+const deleteSessionsForUser = async (userId) => {
+    const sessions = await db.query(
+        "SELECT session_id FROM repositories WHERE user_id = $1",
+        [userId]
+    );
+    for (const { session_id } of sessions.rows) {
+        await deleteMessagesBySession(session_id);
+    }
+    const result = await db.query(
+        "DELETE FROM repositories WHERE user_id = $1 RETURNING id",
+        [userId]
+    );
+    return result.rowCount;
+};
 
 module.exports = {
     createMessage,
@@ -156,5 +222,8 @@ module.exports = {
     getMessagesBySession,
     deleteMessagesBySession,
     getSessionForUser,
-    getSessionsForUser
+    getSessionsForUser,
+    renameSession,
+    deleteSession,
+    deleteSessionsForUser
 };

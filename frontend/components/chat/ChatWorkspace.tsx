@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUp,
   Check,
@@ -14,7 +14,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
-import { getAuthPayload, postAuthRequest } from "@/lib/auth-api";
+import { authRequest, getAuthPayload, postAuthRequest } from "@/lib/auth-api";
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -23,6 +23,7 @@ interface ChatMessage {
 interface ChatRepository {
   id: number | string;
   repo_link: string;
+  title?: string;
   ingestion_status: string;
 }
 const suggestedPrompts = [
@@ -153,6 +154,12 @@ function MessageContent({ content }: { content: string }) {
     </div>
   );
 }
+function repositoryDisplay(repository: ChatRepository | null) {
+  if (!repository) return "BugKill AI";
+  if (repository.title?.trim()) return repository.title.trim();
+  return repository.repo_link.replace(/\/+$/, "").split("/").slice(-2).join("/") || repository.repo_link;
+}
+
 function scrollNearBottom(element: HTMLDivElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 160;
 }
@@ -160,6 +167,7 @@ export default function ChatWorkspace() {
   const params = useParams<{ session_id?: string }>();
   const sessionId = params?.session_id;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [repository, setRepository] = useState<ChatRepository | null>(null);
   const [historyLoading, setHistoryLoading] = useState(Boolean(sessionId));
@@ -175,6 +183,29 @@ export default function ChatWorkspace() {
   const messageListRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
   const requestInFlight = useRef(false);
+  const autoRepositoryIngested = useRef(false);
+
+  useEffect(() => {
+    const requestedRepo = searchParams.get("repo")?.trim();
+    if (!requestedRepo || autoRepositoryIngested.current || sessionId) return;
+    autoRepositoryIngested.current = true;
+    setRepoUrl(requestedRepo);
+    setIngesting(true);
+    postAuthRequest("api/ingest", { repo_url: requestedRepo.replace(/\/+$/, "") }, "Unable to analyze this repository. Please try again.")
+      .then((payload) => {
+        const data = asRecord(payload);
+        const repository = asRecord(data?.repository);
+        const createdSession = typeof data?.session_id === "string"
+          ? data.session_id
+          : typeof repository?.session_id === "string" ? repository.session_id : "";
+        if (!createdSession) throw new Error("The server did not return a repository session ID.");
+        window.dispatchEvent(new Event("bugkill:sessions-updated"));
+        router.replace(`/chat/${encodeURIComponent(createdSession)}`);
+      })
+      .catch((error) => setIngestError(error instanceof Error ? error.message : "Unable to analyze this repository."))
+      .finally(() => setIngesting(false));
+  }, [router, searchParams, sessionId]);
+
   const loadHistory = useCallback(async () => {
     if (!sessionId) {
       setMessages([]);
@@ -204,6 +235,7 @@ export default function ChatWorkspace() {
           ? {
               id: repositoryPayload.id,
               repo_link: repositoryPayload.repo_link,
+              title: typeof repositoryPayload.title === "string" ? repositoryPayload.title : undefined,
               ingestion_status: repositoryPayload.ingestion_status,
             }
           : null,
@@ -396,11 +428,32 @@ export default function ChatWorkspace() {
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] px-4 pl-16 md:px-6">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
           <Sparkles className="h-4 w-4 text-indigo-400" />
-          BugKill AI
+          {repositoryDisplay(repository)}
         </div>
-        <span className="hidden text-xs text-slate-500 sm:block">
-          Repository-aware coding assistant
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            title="Rename repository"
+            onClick={async () => {
+              if (!repository || !sessionId) return;
+              const title = window.prompt("Repository title", repositoryDisplay(repository));
+              if (!title?.trim()) return;
+              const response = await authRequest(`api/chats/sessions/${encodeURIComponent(sessionId)}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title: title.trim() }),
+              });
+              if (response.ok) {
+                setRepository((current) => current ? { ...current, title: title.trim() } : current);
+                window.dispatchEvent(new Event("bugkill:sessions-updated"));
+              }
+            }}
+            className="hidden rounded px-2 py-1 text-xs text-slate-500 hover:bg-white/[0.06] hover:text-indigo-300 sm:block"
+          >
+            Rename
+          </button>
+          <span className="hidden text-xs text-slate-500 sm:block">Repository-aware coding assistant</span>
+        </div>
       </header>
       <div
         ref={messageListRef}

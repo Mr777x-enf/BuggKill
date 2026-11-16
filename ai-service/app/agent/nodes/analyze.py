@@ -16,6 +16,7 @@ async def analyze_code(state: dict) -> dict:
     analysis = await ask_llm(
         question=question,
         context=context,
+        conversation_history=state.get("conversation_history", []),
     )
 
     return {

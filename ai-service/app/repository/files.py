@@ -28,7 +28,6 @@ ALLOWED_EXTENSIONS = {
     ".go",
     ".rs",
     ".php",
-    ".rb",
     ".sql",
     ".html",
     ".css",

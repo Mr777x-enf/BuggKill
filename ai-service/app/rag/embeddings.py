@@ -92,23 +92,45 @@ def create_embeddings(
 
             texts.append(chunk.source)
 
-        response = client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=texts,
-            config=types.EmbedContentConfig(
-                output_dimensionality=EMBEDDING_DIMENSION
-            ),
-        )
+        if len(batch) == 1:
+            requests = [texts[0]]
+        else:
+            requests = [texts]
 
-        if len(response.embeddings) != len(batch):
+        embeddings_data = []
+        for request in requests:
+            response = client.models.embed_content(
+                model=EMBEDDING_MODEL,
+                contents=request,
+                config=types.EmbedContentConfig(
+                    output_dimensionality=EMBEDDING_DIMENSION
+                ),
+            )
+            embeddings_data.extend(response.embeddings)
+
+        # Some Gemini embedding model/API combinations collapse a batch request
+        # into one embedding. Embed the texts separately in that case.
+        if len(embeddings_data) != len(batch):
+            embeddings_data = []
+            for text in texts:
+                response = client.models.embed_content(
+                    model=EMBEDDING_MODEL,
+                    contents=text,
+                    config=types.EmbedContentConfig(
+                        output_dimensionality=EMBEDDING_DIMENSION
+                    ),
+                )
+                embeddings_data.extend(response.embeddings)
+
+        if len(embeddings_data) != len(batch):
             raise ValueError(
                 f"Expected {len(batch)} embeddings, "
-                f"got {len(response.embeddings)}"
+                f"got {len(embeddings_data)}"
             )
 
         for chunk, embedding_data in zip(
             batch,
-            response.embeddings,
+            embeddings_data,
         ):
             embedding = embedding_data.values
 

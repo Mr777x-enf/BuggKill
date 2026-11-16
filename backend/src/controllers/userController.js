@@ -678,7 +678,7 @@ const sendOtp = async (req, res) => {
 
         const user = await findUserByEmail(email);
 
-        if (!user) {
+        if (!user || !user.email_verified) {
             return res.status(200).json(genericResponse);
         }
 
@@ -775,6 +775,12 @@ const verifyOtp = async (req, res) => {
         if (!user) {
             return res.status(404).json({
                 message: "User not found"
+            });
+        }
+
+        if (!user.email_verified) {
+            return res.status(403).json({
+                message: "Email address is not verified"
             });
         }
 

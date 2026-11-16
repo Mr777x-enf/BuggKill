@@ -99,6 +99,7 @@ test("ingestion returns backend session metadata only after indexing is persiste
             storedSessionId = sessionId;
             return { ...repository, session_id: sessionId };
         },
+        getRepositoryByLink: async () => null,
         claimRepositoryForIngestion: async (repositoryId) => ({
             ...repository,
             id: repositoryId,
@@ -232,7 +233,8 @@ test("chat resolves repository and commit from the authenticated session", async
         session_id: "session-a",
         question: "Why does this fail?",
         repository_id: "17",
-        commit_sha: "commit-from-db"
+        commit_sha: "commit-from-db",
+        conversation_history: []
     });
     assert.deepEqual(history.savedPair, [
         "session-a",

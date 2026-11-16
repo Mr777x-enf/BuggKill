@@ -13,6 +13,22 @@ const createRepository = async (userId, repoLink, sessionId) => {
     return result.rows[0];
 };
 
+const getRepositoryByLink = async (userId, repoLink) => {
+    const result = await db.query(
+        `
+        SELECT id, user_id, repo_link, session_id, commit_sha,
+               ingestion_status, title, updated_at
+        FROM repositories
+        WHERE user_id = $1 AND regexp_replace(repo_link, '/+$', '') = regexp_replace($2, '/+$', '')
+        ORDER BY updated_at DESC
+        LIMIT 1
+        `,
+        [userId, repoLink]
+    );
+
+    return result.rows[0];
+};
+
 const setRepositoryIngestionStatus = async (
     repositoryId,
     status,
@@ -49,6 +65,7 @@ const claimRepositoryForIngestion = async (repositoryId) => {
 
 module.exports = {
     createRepository,
+    getRepositoryByLink,
     setRepositoryIngestionStatus,
     claimRepositoryForIngestion
 };

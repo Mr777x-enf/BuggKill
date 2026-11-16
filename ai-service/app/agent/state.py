@@ -15,3 +15,4 @@ class AgentState(TypedDict):
 
     attempt: int
     status: str
+    conversation_history: list[dict[str, str]]

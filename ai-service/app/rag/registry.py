@@ -16,6 +16,7 @@ from .parsers.sql import SQLParser
 from .parsers.html import HTMLParser
 from .parsers.css import CSSParser
 from .parsers.mongodb import MongoDBParser
+from .parsers.typescript import TypeScriptParser
 
 
 class ParserRegistry:
@@ -50,6 +51,10 @@ parser_registry.register(
 parser_registry.register(
     [".js", ".jsx"],
     JavaScriptParser(),
+)
+parser_registry.register(
+    [".ts", ".tsx"],
+    TypeScriptParser(),
 )
 parser_registry.register(
     [".java"],

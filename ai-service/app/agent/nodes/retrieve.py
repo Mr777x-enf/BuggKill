@@ -11,6 +11,7 @@ async def retrieve_code(state: dict) -> dict:
 
     chunks = await search_similar_chunks(
         query_embedding=query_embedding,
+        query_text=question,
         repository_id=repository_id,
         commit_sha=commit_sha,
         limit=5,

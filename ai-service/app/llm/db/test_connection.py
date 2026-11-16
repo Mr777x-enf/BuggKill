@@ -1,16 +1,14 @@
 import asyncio
 
 from app.llm.db.connection import get_db
+from app.main import app, lifespan
 
 
 async def main():
-    db = await get_db()
-
-    try:
-        result = await db.fetchval("SELECT 1")
-        print("Database connection successful:", result)
-    finally:
-        await db.close()
+    async with lifespan(app):
+        async with get_db() as db:
+            result = await db.fetchval("SELECT 1")
+            print("Database connection successful:", result)
 
 
 if __name__ == "__main__":

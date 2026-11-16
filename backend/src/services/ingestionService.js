@@ -1,6 +1,7 @@
 const { randomUUID } = require("crypto");
 const {
     createRepository,
+    getRepositoryByLink,
     setRepositoryIngestionStatus,
     claimRepositoryForIngestion
 } = require("../models/user.repo");
@@ -22,12 +23,29 @@ const ingestRepository = async ({ userId, repo_url, sessionId }) => {
 
         repo_url = repository.repo_link;
     } else {
-        session_id = randomUUID();
-        repository = await createRepository(
-            userId,
-            repo_url,
-            session_id
-        );
+        repository = await getRepositoryByLink(userId, repo_url);
+        if (repository) {
+            session_id = repository.session_id;
+            if (
+                repository.ingestion_status === "indexed" &&
+                repository.commit_sha
+            ) {
+                return {
+                    session_id,
+                    repository_id: String(repository.id),
+                    status: "indexed",
+                    commit_sha: repository.commit_sha,
+                    repository
+                };
+            }
+        } else {
+            session_id = randomUUID();
+            repository = await createRepository(
+                userId,
+                repo_url,
+                session_id
+            );
+        }
     }
 
     const claimedRepository = await claimRepositoryForIngestion(

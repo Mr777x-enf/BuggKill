@@ -1,4 +1,10 @@
 from app.agent.graph import agent_graph
+from typing import TypedDict
+
+
+class ConversationMessage(TypedDict):
+    role: str
+    content: str
 
 
 async def process_chat(
@@ -6,6 +12,7 @@ async def process_chat(
     question: str,
     repository_id: str,
     commit_sha: str,
+    conversation_history: list[ConversationMessage] | None = None,
 ):
     initial_state = {
         "question": question,
@@ -18,6 +25,7 @@ async def process_chat(
         "proposed_fix": "",
         "attempt": 0,
         "status": "started",
+        "conversation_history": conversation_history or [],
     }
     config = {
         "configurable": {

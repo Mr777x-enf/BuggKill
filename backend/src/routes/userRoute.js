@@ -1,4 +1,5 @@
 const express = require("express");
+const authenticate = require("../middleware/auth.middleware");
 
 const {
     registerUser,
@@ -19,7 +20,7 @@ router.post("/register", registerUser);
 router.post("/verify-email", verifyEmail);
 router.post("/resend-verification", resendVerificationEmail);
 
-router.get("/email/:email", getUserByEmail); 
+router.get("/email/:email", authenticate, getUserByEmail);
 router.get("/me", getCurrentUser);
 router.post("/login",loginUser);
 router.post("/logout",logoutUser)

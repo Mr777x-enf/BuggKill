@@ -1,7 +1,8 @@
 
 const {
     createMessagePair,
-    getSessionForUser
+    getSessionForUser,
+    getMessagesBySession
 } = require("../models/history.model");
 
 const {
@@ -45,11 +46,23 @@ const chatController = async (req, res) => {
             });
         }
 
+        const previousMessages = typeof getMessagesBySession === "function"
+            ? await getMessagesBySession(session_id)
+            : [];
+        const conversation_history = previousMessages
+            .filter((message) => message.role === "user" || message.role === "assistant")
+            .slice(-20)
+            .map((message) => ({
+                role: message.role,
+                content: message.content
+            }));
+
         const data = await postAiService("api/chat/", {
             session_id,
             question,
             repository_id: String(session.id),
-            commit_sha: session.commit_sha
+            commit_sha: session.commit_sha,
+            conversation_history
         });
 
         const answer = data.answer;

@@ -43,7 +43,7 @@ verifyTransporter();
 
 async function sendEmail(to, subject, text) {
   const info = await transporter.sendMail({
-    from: mailUser,
+    from: `"Buggdady" <${mailUser}>`,
     to,
     subject,
     text,

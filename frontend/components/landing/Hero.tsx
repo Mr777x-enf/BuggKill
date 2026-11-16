@@ -1,6 +1,10 @@
 
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   ArrowRight,
   GitBranch,
@@ -22,6 +26,15 @@ const steps = [
 ];
 
 export default function Hero() {
+  const router = useRouter();
+  const [repoUrl, setRepoUrl] = useState("");
+
+  function analyzeRepository(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!repoUrl.trim()) return;
+    router.push(`/login?repo=${encodeURIComponent(repoUrl.trim())}`);
+  }
+
   return (
     <>
       <section className="mx-auto grid min-h-[calc(100vh-88px)] max-w-7xl items-center gap-8 px-6 py-8 lg:grid-cols-2 lg:gap-12 lg:px-10">
@@ -58,6 +71,19 @@ export default function Hero() {
 
          
         
+          <form onSubmit={analyzeRepository} className="mt-7 flex max-w-xl flex-col gap-3 sm:flex-row">
+            <input
+              type="url"
+              required
+              value={repoUrl}
+              onChange={(event) => setRepoUrl(event.target.value)}
+              placeholder="https://github.com/owner/repository"
+              aria-label="Repository URL"
+              className="h-12 min-w-0 flex-1 rounded-lg border border-white/15 bg-[#10131e] px-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-400"
+            />
+            <button type="submit" className="h-12 shrink-0 rounded-lg bg-indigo-500 px-5 text-sm font-semibold hover:bg-indigo-400">Analyze repository</button>
+          </form>
+
 <div className="mt-8 flex flex-wrap items-center gap-3">
   <Link
     href="/signup"

@@ -12,9 +12,7 @@ async def store_chunks(
     if not embedded_chunks:
         return
 
-    db = await get_db()
-
-    try:
+    async with get_db() as db:
         async with db.transaction():
             for chunk, embedding in embedded_chunks:
                 if len(embedding) != 1536:
@@ -79,6 +77,3 @@ async def store_chunks(
                     chunk.chunker_version,
                     embedding,
                 )
-
-    finally:
-        await db.close()

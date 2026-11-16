@@ -10,14 +10,19 @@ import {
   LoaderCircle,
   LogOut,
   MessageSquare,
+  Pencil,
   Plus,
   Trash2,
 } from "lucide-react";
 import { authRequest, getAuthPayload } from "@/lib/auth-api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface ChatSession {
   session_id: string;
   repo_link: string;
+  title?: string | null;
+  updated_at?: string;
+  last_activity?: string;
   last_message: string | null;
 }
 
@@ -57,6 +62,9 @@ export default function ChatSidebar({
   const [error, setError] = useState("");
   const [busySession, setBusySession] = useState("");
   const [logoutError, setLogoutError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<string | "all" | null>(null);
+  const [editingSession, setEditingSession] = useState("");
+  const [editingTitle, setEditingTitle] = useState("");
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -127,30 +135,44 @@ export default function ChatSidebar({
     }
   }
 
-  async function clearHistory(sessionId: string) {
-    if (!window.confirm("Clear the saved messages for this chat?")) return;
-
-    setBusySession(sessionId);
+  async function confirmDeleteSession() {
+    if (!confirmDelete) return;
+    setBusySession(confirmDelete);
     setError("");
-
     try {
       const response = await authRequest(
-        `api/chats/history/${encodeURIComponent(sessionId)}`,
+        confirmDelete === "all"
+          ? "api/chats/sessions"
+          : `api/chats/sessions/${encodeURIComponent(confirmDelete)}`,
         { method: "DELETE" },
       );
-
-      if (!response.ok) {
-        throw new Error("Unable to clear this chat. Please try again.");
-      }
-
-      window.dispatchEvent(new Event("bugkill:history-cleared"));
+      if (!response.ok) throw new Error("Unable to delete the selected chat.");
+      if (confirmDelete === "all" || pathname === `/chat/${confirmDelete}`) router.replace("/chat");
+      window.dispatchEvent(new Event("bugkill:sessions-updated"));
+      setConfirmDelete(null);
       await loadSessions();
-    } catch (clearError) {
-      setError(
-        clearError instanceof Error
-          ? clearError.message
-          : "Unable to clear this chat. Please try again.",
-      );
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete the chat.");
+    } finally {
+      setBusySession("");
+    }
+  }
+
+  async function saveTitle(sessionId: string) {
+    const title = editingTitle.trim();
+    if (!title) return;
+    setBusySession(sessionId);
+    try {
+      const response = await authRequest(`api/chats/sessions/${encodeURIComponent(sessionId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (!response.ok) throw new Error("Unable to rename this chat.");
+      setEditingSession("");
+      await loadSessions();
+    } catch (renameError) {
+      setError(renameError instanceof Error ? renameError.message : "Unable to rename this chat.");
     } finally {
       setBusySession("");
     }
@@ -205,8 +227,11 @@ export default function ChatSidebar({
         <span className={collapsed ? "md:hidden" : ""}>New chat</span>
       </Link>
 
-      <div className={`mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-slate-500 ${collapsed ? "md:hidden" : ""}`}>
-        Recent repositories
+      <div className={`mb-2 flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider text-slate-500 ${collapsed ? "md:hidden" : ""}`}>
+        <span>Recent repositories</span>
+        {sessions.length > 0 && (
+          <button type="button" onClick={() => setConfirmDelete("all")} className="normal-case text-[11px] font-normal text-red-300 hover:text-red-200">Delete all</button>
+        )}
       </div>
 
       <nav aria-label="Chat history" className="min-h-0 flex-1 space-y-1 overflow-y-auto">
@@ -240,25 +265,40 @@ export default function ChatSidebar({
                 } ${collapsed ? "md:justify-center md:px-0" : ""}`}
               >
                 <MessageSquare className="h-4 w-4 shrink-0 text-slate-500" />
-                <span className={`truncate ${collapsed ? "md:hidden" : ""}`}>
-                  {repositoryName(session.repo_link)}
+                <span className={`min-w-0 flex-1 ${collapsed ? "md:hidden" : ""}`}>
+                  {editingSession === session.session_id ? (
+                    <input
+                      value={editingTitle}
+                      onChange={(event) => setEditingTitle(event.target.value)}
+                      onBlur={() => void saveTitle(session.session_id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void saveTitle(session.session_id);
+                        if (event.key === "Escape") setEditingSession("");
+                      }}
+                      autoFocus
+                      className="w-full rounded border border-indigo-400/40 bg-[#090b14] px-2 py-1 text-xs text-white outline-none"
+                    />
+                  ) : (
+                    <>
+                      <span className="block truncate">{session.title?.trim() || repositoryName(session.repo_link)}</span>
+                      {(session.updated_at || session.last_activity) && (
+                        <span className="mt-0.5 block text-[10px] text-slate-500">
+                          {new Date(session.updated_at || session.last_activity || "").toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                        </span>
+                      )}
+                    </>
+                  )}
                 </span>
               </Link>
               {!collapsed && (
-                <button
-                  type="button"
-                  aria-label={`Clear chat history for ${repositoryName(session.repo_link)}`}
-                  title="Clear saved messages"
-                  disabled={busySession === session.session_id}
-                  onClick={() => void clearHistory(session.session_id)}
-                  className="mr-1 rounded p-2 text-slate-500 opacity-0 transition hover:bg-white/10 hover:text-red-300 focus:opacity-100 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50"
-                >
-                  {busySession === session.session_id ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                </button>
+                <div className="flex opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                  <button type="button" aria-label="Rename chat" title="Rename chat" onClick={() => { setEditingSession(session.session_id); setEditingTitle(session.title?.trim() || repositoryName(session.repo_link)); }} className="rounded p-1.5 text-slate-500 hover:bg-white/10 hover:text-indigo-300">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" aria-label="Delete chat" title="Delete chat" disabled={busySession === session.session_id} onClick={() => setConfirmDelete(session.session_id)} className="mr-1 rounded p-1.5 text-slate-500 hover:bg-white/10 hover:text-red-300 disabled:opacity-50">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               )}
             </div>
           );
@@ -313,6 +353,14 @@ export default function ChatSidebar({
           <span className={collapsed ? "md:hidden" : ""}>Log out</span>
         </button>
       </div>
+      <ConfirmModal
+        open={Boolean(confirmDelete)}
+        title={confirmDelete === "all" ? "Delete all chats?" : "Delete this chat?"}
+        description={confirmDelete === "all" ? "All of your repositories and chat history will be removed." : "This repository session and its chat history will be removed."}
+        confirmLabel="Delete"
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => void confirmDeleteSession()}
+      />
     </aside>
   );
 }

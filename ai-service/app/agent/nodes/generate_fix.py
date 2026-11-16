@@ -38,6 +38,7 @@ The proposed change will be tested separately.
     proposed_fix = await ask_llm(
         question=prompt,
         context=context,
+        conversation_history=state.get("conversation_history", []),
     )
 
     return {

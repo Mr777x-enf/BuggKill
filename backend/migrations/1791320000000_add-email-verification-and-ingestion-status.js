@@ -3,7 +3,7 @@ exports.up = (pgm) => {
         email_verified: {
             type: "boolean",
             notNull: true,
-            default: true
+            default: false
         },
         email_verification_token_hash: {
             type: "text"
