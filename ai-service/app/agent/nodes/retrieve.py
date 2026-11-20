@@ -1,3 +1,5 @@
+import asyncio
+
 from app.rag.embeddings import create_embedding
 from app.rag.retriever import search_similar_chunks
 
@@ -7,7 +9,7 @@ async def retrieve_code(state: dict) -> dict:
     repository_id = state["repository_id"]
     commit_sha = state["commit_sha"]
 
-    query_embedding = create_embedding(question)
+    query_embedding = await asyncio.to_thread(create_embedding, question)
 
     chunks = await search_similar_chunks(
         query_embedding=query_embedding,

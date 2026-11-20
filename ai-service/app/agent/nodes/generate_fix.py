@@ -1,15 +1,14 @@
+from app.rag.context_builder import build_context
 from app.llm.model import ask_llm
 
 
 async def generate_fix(state: dict) -> dict:
     """
-    Ask the LLM to propose a code fix based on
-    the debugging analysis and retrieved code.
+    Ask the LLM to propose a code fix based on the retrieved code.
     """
 
     question = state["question"]
-    context = state["context"]
-    analysis = state["analysis"]
+    context = build_context(state["chunks"])
 
     prompt = f"""
 You are fixing a bug in a software repository.
@@ -20,9 +19,7 @@ User's bug report:
 Repository context:
 {context}
 
-Your analysis:
-{analysis}
-
+First analyze the likely cause using only the provided repository context.
 Propose the smallest safe code change that could fix the bug.
 
 Return:

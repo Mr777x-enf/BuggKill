@@ -15,7 +15,8 @@ def build_graph():
 
     graph.add_edge(START, "retrieve_code")
     graph.add_edge("retrieve_code", "analyze_code")
-    graph.add_edge("analyze_code", "generate_fix")
+    graph.add_edge("retrieve_code", "generate_fix")
+    graph.add_edge("analyze_code", END)
     graph.add_edge("generate_fix", END)
 
     return graph.compile()
