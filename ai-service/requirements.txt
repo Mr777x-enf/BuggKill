@@ -38,6 +38,6 @@ sentence-transformers==4.1.0
 
 # LLM + embeddings
 google-genai==2.29.0
-
+langsmith==0.8.3
 # LangGraph
 langgraph==1.2.14

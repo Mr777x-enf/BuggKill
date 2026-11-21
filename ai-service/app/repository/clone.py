@@ -4,11 +4,12 @@ import re
 import shutil
 import subprocess
 import tempfile
+from langsmith import traceable
 
 
 CLONE_TIMEOUT_SECONDS = 300
 
-
+@traceable(name="clone_repository")
 def clone_repository(
     repo_url: str,
     session_id: str,

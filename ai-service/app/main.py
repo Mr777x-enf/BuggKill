@@ -1,8 +1,8 @@
-
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 import asyncpg
 from fastapi import FastAPI
 from pgvector.asyncpg import register_vector
@@ -10,6 +10,8 @@ from pgvector.asyncpg import register_vector
 from app.llm.db.connection import set_db_pool
 from app.routes.router import router
 
+# Load environment variables
+load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -30,23 +32,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         set_db_pool(None)
         app.state.pool = None
 
-
 app = FastAPI(
     title="Code Debugger AI Service",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-
 app.include_router(router, prefix="/api")
-
 
 @app.get("/")
 async def root():
     return {
         "message": "AI service is running"
     }
-
 
 @app.get("/health")
 async def health():
