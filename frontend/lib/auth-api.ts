@@ -1,6 +1,8 @@
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
-).replace(/\/+$/, "");
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
+
+if (!API_URL) {
+  throw new Error("NEXT_PUBLIC_API_URL is not configured");
+}
 
 type RequestOptions = Omit<RequestInit, "credentials"> & {
   retry?: boolean;
@@ -11,7 +13,7 @@ export class AuthRequestError extends Error {
     message: string,
     readonly status: number,
   ) {
-    super(message);
+    super(message);   
     this.name = "AuthRequestError";
   }
 }
