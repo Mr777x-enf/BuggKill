@@ -103,7 +103,7 @@ The CrossEncoder model is downloaded the first time it is needed unless it is al
 NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
-The frontend uses `http://localhost:5000` if this value is omitted.
+The frontend defaults to `http://localhost:5000` if this value is omitted. Browser API calls go through the frontend's same-origin `/api` proxy so authentication cookies work when the frontend and backend are hosted on different domains. Set this variable to the backend origin in production. Leave the backend's optional `COOKIE_DOMAIN` unset so its cookies are scoped to the frontend host through the proxy.
 
 ## Run locally
 

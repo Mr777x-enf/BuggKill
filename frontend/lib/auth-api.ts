@@ -1,9 +1,3 @@
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
-
-if (!API_URL) {
-  throw new Error("NEXT_PUBLIC_API_URL is not configured");
-}
-
 type RequestOptions = Omit<RequestInit, "credentials"> & {
   retry?: boolean;
 };
@@ -21,7 +15,7 @@ export class AuthRequestError extends Error {
 let refreshRequest: Promise<Response> | null = null;
 
 function apiUrl(endpoint: string) {
-  return `${API_URL}/${endpoint.replace(/^\/+/, "")}`;
+  return `/${endpoint.replace(/^\/+/, "")}`;
 }
 
 async function refreshSession() {
