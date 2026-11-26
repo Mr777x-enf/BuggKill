@@ -134,20 +134,7 @@ npm run migrate -- up --envPath .env --migrations-table backend_migrations
 npm run migrate -- up --envPath .env --migrations-dir ../ai-service/migrations --migrations-table ai_service_migrations
 ```
 
-For production, set `DATABASE_URL` to the Render external connection string in the service environment for both Express and FastAPI. Use the same value for both services and keep it out of source control. To run migrations manually without writing the URL to a file, enter it at the hidden prompt below. First inspect the pending SQL with `--dry-run`; apply only after confirming the existing migration-history table and pending migrations are the expected ones.
-
-```sh
-(
-  read -rsp "Render DATABASE_URL: " DATABASE_URL
-  printf '\n'
-  export DATABASE_URL
-  cd backend || exit 1
-  npm run migrate -- up --migrations-table backend_migrations --dry-run --reject-unauthorized &&
-    npm run migrate -- up --migrations-dir ../ai-service/migrations --migrations-table ai_service_migrations --dry-run --reject-unauthorized
-)
-```
-
-After reviewing the dry-run output and checking that production already uses these history-table names, run the same commands without `--dry-run`. If production previously used the default `pgmigrations` table or a different table name, retain that history-table name rather than starting a new history. Never use `--fake` to bypass a schema migration.
+For production, configure `DATABASE_URL` separately for each Render service: Express must use Supabase PostgreSQL, and FastAPI must use its separate Render PostgreSQL database with pgvector. Do not share either connection string between the services. The migration commands above are for local development only. If production migrations are needed, target backend migrations to Supabase and AI-service migrations to Render PostgreSQL separately, after verifying each destination and reviewing the pending SQL. Preserve each database's existing migration-history table name; never use `--fake` to bypass a schema migration. This chat communication fix does not require a database migration.
 
 Start the Express API:
 
