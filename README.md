@@ -83,6 +83,7 @@ The backend accepts `EMAIL_USER` as an alternative to `MAIL_USER`. Cookie settin
 
 ```env
 GEMINI_API_KEY=your-gemini-api-key
+DATABASE_URL=postgres://bugdady:choose-a-local-password@localhost:5433/bugdady
 
 DB_HOST=localhost
 DB_PORT=5433
@@ -126,12 +127,27 @@ cd backend
 npm install
 ```
 
-With `backend/.env` configured, run the two migration sets. They use separate migration-history tables because they live in different folders and have independent version histories.
+With `backend/.env` configured, run the two migration sets. They use separate migration-history tables because they live in different folders and have independent version histories. The FastAPI service uses the same SQL migration through this CLI; it does not run schema migrations at startup.
 
 ```powershell
 npm run migrate -- up --envPath .env --migrations-table backend_migrations
 npm run migrate -- up --envPath .env --migrations-dir ../ai-service/migrations --migrations-table ai_service_migrations
 ```
+
+For production, set `DATABASE_URL` to the Render external connection string in the service environment for both Express and FastAPI. Use the same value for both services and keep it out of source control. To run migrations manually without writing the URL to a file, enter it at the hidden prompt below. First inspect the pending SQL with `--dry-run`; apply only after confirming the existing migration-history table and pending migrations are the expected ones.
+
+```sh
+(
+  read -rsp "Render DATABASE_URL: " DATABASE_URL
+  printf '\n'
+  export DATABASE_URL
+  cd backend || exit 1
+  npm run migrate -- up --migrations-table backend_migrations --dry-run --reject-unauthorized &&
+    npm run migrate -- up --migrations-dir ../ai-service/migrations --migrations-table ai_service_migrations --dry-run --reject-unauthorized
+)
+```
+
+After reviewing the dry-run output and checking that production already uses these history-table names, run the same commands without `--dry-run`. If production previously used the default `pgmigrations` table or a different table name, retain that history-table name rather than starting a new history. Never use `--fake` to bypass a schema migration.
 
 Start the Express API:
 

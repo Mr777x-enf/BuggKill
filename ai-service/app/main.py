@@ -1,6 +1,7 @@
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 import asyncpg
@@ -15,8 +16,16 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    dsn = os.getenv("DATABASE_URL")
+    if not dsn:
+        raise RuntimeError("Missing DATABASE_URL environment variable")
+
+    hostname = urlparse(dsn).hostname or ""
+    ssl = "require" if hostname.endswith(".render.com") else None
+
     pool = await asyncpg.create_pool(
-        dsn=os.getenv("DATABASE_URL"),
+        dsn=dsn,
+        ssl=ssl,
         min_size=1,
         max_size=10,
         init=register_vector,

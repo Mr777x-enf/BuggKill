@@ -2,7 +2,8 @@ export const up = (pgm) => {
     pgm.addColumn("repositories", {
         session_id: {
             type: "uuid",
-            notNull: true
+            notNull: true,
+            default: pgm.func("gen_random_uuid()")
         }
     });
 };

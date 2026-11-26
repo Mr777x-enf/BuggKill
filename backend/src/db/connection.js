@@ -18,7 +18,9 @@ if (!process.env.DATABASE_URL) {
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
-        rejectUnauthorized: false
+        rejectUnauthorized:
+            process.env.NODE_ENV === "production" ||
+            new URL(process.env.DATABASE_URL).hostname.endsWith(".render.com")
     },
     max: 10,
     idleTimeoutMillis: 30000,
