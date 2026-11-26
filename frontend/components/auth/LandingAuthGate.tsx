@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, LoaderCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { authRequest } from "@/lib/auth-api";
 
 type GateState =
@@ -47,19 +47,18 @@ export default function LandingAuthGate({
     };
   }, [attempt, router]);
 
-  if (state === "unauthenticated") return children;
-
   if (state === "unavailable") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#090b14] px-5 text-white">
-        <section className="max-w-md rounded-2xl border border-white/10 bg-[#10131e] p-7 text-center">
-          <AlertCircle className="mx-auto h-8 w-8 text-amber-300" />
-          <h1 className="mt-4 text-xl font-semibold">
-            Couldn&apos;t verify your session
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            The authentication service may be temporarily unavailable. Your
-            session has not been cleared.
+      <>
+        {children}
+        <aside
+          role="status"
+          className="fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-white/10 bg-[#10131e] p-4 text-white shadow-2xl"
+        >
+          <AlertCircle className="h-6 w-6 shrink-0 text-amber-300" />
+          <p className="flex-1 text-sm leading-6 text-slate-300">
+            Couldn&apos;t verify your session. Authentication may be temporarily
+            unavailable.
           </p>
           <button
             type="button"
@@ -67,21 +66,14 @@ export default function LandingAuthGate({
               setState("checking");
               setAttempt((value) => value + 1);
             }}
-            className="mt-5 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold hover:bg-indigo-400"
+            className="shrink-0 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold hover:bg-indigo-400"
           >
             Try again
           </button>
-        </section>
-      </main>
+        </aside>
+      </>
     );
   }
 
-  return (
-    <main
-      aria-label="Checking your session"
-      className="flex min-h-screen items-center justify-center bg-[#090b14] text-slate-400"
-    >
-      <LoaderCircle className="h-6 w-6 animate-spin" />
-    </main>
-  );
+  return children;
 }
