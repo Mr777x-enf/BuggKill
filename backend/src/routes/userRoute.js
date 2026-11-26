@@ -3,6 +3,8 @@ const authenticate = require("../middleware/auth.middleware");
 
 const {
     registerUser,
+    verifySignupOtp,
+    resendSignupOtp,
     verifyEmail,
     resendVerificationEmail,
     getUserByEmail,
@@ -17,6 +19,8 @@ const {
 const router = express.Router();
 
 router.post("/register", registerUser);
+router.post("/verify-signup", verifySignupOtp);
+router.post("/resend-signup-otp", resendSignupOtp);
 router.post("/verify-email", verifyEmail);
 router.post("/resend-verification", resendVerificationEmail);
 

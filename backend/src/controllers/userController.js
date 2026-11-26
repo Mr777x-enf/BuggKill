@@ -11,7 +11,12 @@ const {
 const sendEmail = require("../services/email");
 
 const {
-    createUser,
+    createPendingSignup,
+    findPendingSignupByEmail,
+    incrementPendingSignupAttempts,
+    updatePendingSignupOtp,
+    clearPendingSignupSentAt,
+    completePendingSignup,
     findUserByEmail,
     saveEmailVerificationToken,
     markEmailVerified,
@@ -152,24 +157,6 @@ The Team`
     }
 };
 
-const sendVerificationEmail = async (user) => {
-    const token = randomBytes(32).toString("base64url");
-    const tokenHash = createHash("sha256").update(token).digest("hex");
-    const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
-    const savedUser = await saveEmailVerificationToken(
-        user.id,
-        tokenHash,
-        expiresAt,
-        true
-    );
-
-    if (!savedUser) {
-        throw new Error("Unable to create email verification token");
-    }
-
-    await deliverVerificationEmail(savedUser, token, tokenHash);
-};
-
 const registerUser = async (req, res) => {
     try {
         const password = req.body.password;
@@ -216,30 +203,177 @@ const registerUser = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await createUser(name, email, hashedPassword);
+        const otp = randomInt(100000, 1000000).toString();
+        const otpHash = createHash("sha256").update(otp).digest("hex");
+        const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+        const pendingSignup = await createPendingSignup(
+            name,
+            email,
+            hashedPassword,
+            otpHash,
+            expiresAt
+        );
+
+        if (!pendingSignup) {
+            return res.status(429).json({
+                message: "A verification code was recently sent. Please wait a minute before trying again."
+            });
+        }
 
         try {
-            await sendVerificationEmail(user);
-        } catch (emailError) {
-            if (emailError.code !== "EMAIL_DELIVERY_FAILED") {
-                throw emailError;
-            }
+            await sendEmail(
+                email,
+                "Verify Your BugKill Account",
+                `Hi ${name},
 
-            console.error("Verification email delivery failed:", emailError);
+Your account verification code is:
+
+${otp}
+
+This code will expire in 5 minutes.
+
+Best regards,
+The Team`
+            );
+        } catch (emailError) {
+            await clearPendingSignupSentAt(email);
+            console.error("Signup verification code delivery failed:", emailError);
             return res.status(503).json({
-                message: "Your account was created, but the verification email could not be sent. Please request another email."
+                message: "Your verification code could not be sent. Please request a new code."
             });
         }
 
         return res.status(201).json({
-            message: "Account created. Check your email to verify your address.",
-            user: sanitizeUser(user)
+            message: "Verification code sent. Enter it to create your account."
         });
     } catch (error) {
         console.error("Registration failed:", error);
 
         return res.status(500).json({
             message: "Internal server error"
+        });
+    }
+};
+
+const verifySignupOtp = async (req, res) => {
+    try {
+        const email = normalizeEmail(req.body.email);
+        const otp = String(req.body.otp ?? "").trim();
+
+        if (!email || !/^\d{6}$/.test(otp)) {
+            return res.status(400).json({
+                message: "Enter your email address and 6-digit verification code"
+            });
+        }
+
+        const pendingSignup = await findPendingSignupByEmail(email);
+
+        if (!pendingSignup || new Date(pendingSignup.expires_at).getTime() <= Date.now()) {
+            return res.status(400).json({
+                message: "This verification code is invalid or expired. Request a new code."
+            });
+        }
+
+        if (pendingSignup.attempts >= OTP_MAX_ATTEMPTS) {
+            return res.status(429).json({
+                message: "Too many attempts. Please request a new verification code."
+            });
+        }
+
+        const otpHash = createHash("sha256").update(otp).digest("hex");
+
+        if (!safeEqual(pendingSignup.otp_hash, otpHash)) {
+            const attempt = await incrementPendingSignupAttempts(email);
+
+            if (!attempt || attempt.attempts >= OTP_MAX_ATTEMPTS) {
+                return res.status(429).json({
+                    message: "Too many attempts. Please request a new verification code."
+                });
+            }
+
+            return res.status(401).json({
+                message: "Invalid verification code"
+            });
+        }
+
+        const user = await completePendingSignup(
+            email,
+            otpHash,
+            OTP_MAX_ATTEMPTS
+        );
+
+        if (!user) {
+            return res.status(400).json({
+                message: "This verification code is invalid or expired. Request a new code."
+            });
+        }
+
+        return res.status(201).json({
+            message: "Account created and email verified successfully",
+            user: sanitizeUser(user)
+        });
+    } catch (error) {
+        console.error("Signup verification failed:", error);
+        return res.status(500).json({
+            message: "Unable to verify your account right now"
+        });
+    }
+};
+
+const resendSignupOtp = async (req, res) => {
+    try {
+        const email = normalizeEmail(req.body.email);
+
+        if (!email) {
+            return res.status(400).json({
+                message: "Email is required"
+            });
+        }
+
+        const genericResponse = {
+            message: "If an incomplete signup exists for that email, a verification code will be sent."
+        };
+        const otp = randomInt(100000, 1000000).toString();
+        const otpHash = createHash("sha256").update(otp).digest("hex");
+        const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+        const pendingSignup = await updatePendingSignupOtp(
+            email,
+            otpHash,
+            expiresAt
+        );
+
+        if (!pendingSignup) {
+            return res.status(200).json(genericResponse);
+        }
+
+        try {
+            await sendEmail(
+                email,
+                "Your BugKill Verification Code",
+                `Hi ${pendingSignup.name},
+
+Your account verification code is:
+
+${otp}
+
+This code will expire in 5 minutes.
+
+Best regards,
+The Team`
+            );
+        } catch (emailError) {
+            await clearPendingSignupSentAt(email);
+            console.error("Signup verification code resend failed:", emailError);
+            return res.status(503).json({
+                message: "Unable to send a verification code right now. Please try again later."
+            });
+        }
+
+        return res.status(200).json(genericResponse);
+    } catch (error) {
+        console.error("Resend signup verification code failed:", error);
+        return res.status(500).json({
+            message: "Unable to send a verification code right now"
         });
     }
 };
@@ -802,6 +936,8 @@ const verifyOtp = async (req, res) => {
 
 module.exports = {
     registerUser,
+    verifySignupOtp,
+    resendSignupOtp,
     verifyEmail,
     resendVerificationEmail,
     loginUser,

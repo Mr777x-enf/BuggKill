@@ -20,7 +20,10 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
   const [emailToVerify, setEmailToVerify] = useState("");
+  const [otp, setOtp] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
 
@@ -62,6 +65,7 @@ export default function SignupPage() {
       );
       setEmailToVerify(email);
       setSuccess(true);
+      setResendMessage("");
     } catch (requestError) {
       if (
         requestError instanceof AuthRequestError &&
@@ -83,16 +87,42 @@ export default function SignupPage() {
     }
   }
 
-  async function resendVerificationEmail() {
+  async function verifySignupOtp() {
+    if (!emailToVerify || verifying || accountCreated) return;
+
+    setError("");
+    setVerifying(true);
+
+    try {
+      await postAuthRequest(
+        "api/users/verify-signup",
+        { email: emailToVerify, otp },
+        "Unable to verify your account. Please try again.",
+        { retry: false },
+      );
+      setAccountCreated(true);
+      setResendMessage("");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to verify your account. Please try again.",
+      );
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function resendSignupOtp() {
     if (!emailToVerify || resending) return;
     setResending(true);
     setResendMessage("");
 
     try {
       const payload = await postAuthRequest(
-        "api/users/resend-verification",
+        "api/users/resend-signup-otp",
         { email: emailToVerify },
-        "Unable to request a verification email. Please try again.",
+        "Unable to request a verification code. Please try again.",
         { retry: false },
       );
       const message =
@@ -101,13 +131,13 @@ export default function SignupPage() {
         "message" in payload &&
         typeof payload.message === "string"
           ? payload.message
-          : "If an unverified account exists for that email, a verification link will be sent.";
+          : "If an incomplete signup exists for that email, a verification code will be sent.";
       setResendMessage(message);
     } catch (requestError) {
       setResendMessage(
         requestError instanceof Error
           ? requestError.message
-          : "Unable to request a verification email. Please try again.",
+          : "Unable to request a verification code. Please try again.",
       );
     } finally {
       setResending(false);
@@ -148,17 +178,77 @@ export default function SignupPage() {
             )}
             {success && (
               <div role="status" className="space-y-2 text-sm text-emerald-300">
-                <p>{resendMessage || `Account created. Check ${emailToVerify} for a verification link before signing in.`}</p>
-                <button
-                  type="button"
-                  onClick={() => void resendVerificationEmail()}
-                  disabled={resending}
-                  className="font-medium text-indigo-300 underline underline-offset-4 disabled:opacity-60"
-                >
-                  {resending ? "Sending..." : "Resend verification email"}
-                </button>
-                {resendMessage && (
-                  <p className="text-xs text-slate-400">{resendMessage}</p>
+                {accountCreated ? (
+                  <>
+                    <p>Your email is verified and your account is ready.</p>
+                    <Link
+                      href="/login"
+                      className="inline-block font-medium text-indigo-300 underline underline-offset-4"
+                    >
+                      Continue to login
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      {resendMessage ||
+                        `We sent a 6-digit verification code to ${emailToVerify}. Enter it below to create your account.`}
+                    </p>
+                    <div className="space-y-3 pt-2">
+                      <label
+                        htmlFor="signupOtp"
+                        className="block text-left text-sm font-medium text-slate-200"
+                      >
+                        Verification code
+                      </label>
+                      <input
+                        id="signupOtp"
+                        name="otp"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        value={otp}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            if (otp.length === 6) void verifySignupOtp();
+                          }
+                        }}
+                        onChange={(event) => {
+                          setOtp(event.target.value.replace(/\D/g, "").slice(0, 6));
+                          setError("");
+                        }}
+                        required
+                        disabled={verifying}
+                        className="h-12 w-full rounded-lg border border-white/10 bg-[#090b14] px-4 text-center text-lg tracking-[0.4em] text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/15"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void verifySignupOtp()}
+                        disabled={verifying || otp.length !== 6}
+                        className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {verifying ? (
+                          <>
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                            Verifying...
+                          </>
+                        ) : (
+                          "Verify code and create account"
+                        )}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void resendSignupOtp()}
+                      disabled={resending}
+                      className="font-medium text-indigo-300 underline underline-offset-4 disabled:opacity-60"
+                    >
+                      {resending ? "Sending..." : "Resend verification code"}
+                    </button>
+                  </>
                 )}
               </div>
             )}

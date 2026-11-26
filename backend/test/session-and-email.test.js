@@ -64,7 +64,45 @@ const restoreAi = installMock("../src/services/aiService", {
 const { chatController } = require("../src/controllers/chatController");
 
 const userModel = {
-    createUser: async (name, email) => ({ id: 5, name, email }),
+    createUser: async (name, email) => {
+        userModel.createdUsers.push({ id: 5, name, email });
+        return { id: 5, name, email };
+    },
+    createdUsers: [],
+    pendingSignup: null,
+    createPendingSignup: async (name, email, password, otpHash, expiresAt) => {
+        userModel.pendingSignup = {
+            name,
+            email,
+            password,
+            otp_hash: otpHash,
+            expires_at: expiresAt,
+            attempts: 0
+        };
+        return { email };
+    },
+    findPendingSignupByEmail: async (email) =>
+        userModel.pendingSignup?.email === email
+            ? userModel.pendingSignup
+            : undefined,
+    incrementPendingSignupAttempts: async () => {
+        userModel.pendingSignup.attempts += 1;
+        return { attempts: userModel.pendingSignup.attempts };
+    },
+    updatePendingSignupOtp: async () => undefined,
+    completePendingSignup: async (email, otpHash) => {
+        if (
+            userModel.pendingSignup?.email !== email ||
+            userModel.pendingSignup.otp_hash !== otpHash ||
+            userModel.pendingSignup.attempts >= 5
+        ) {
+            return undefined;
+        }
+
+        const { name } = userModel.pendingSignup;
+        userModel.pendingSignup = null;
+        return userModel.createUser(name, email);
+    },
     findUserByEmail: async () => null,
     saveEmailVerificationToken: async (...args) => {
         userModel.savedVerification = args;
@@ -85,7 +123,11 @@ const restoreUserModel = installMock("../src/models/user.model", userModel);
 const restoreEmail = installMock("../src/services/email", async (...args) => {
     sentEmail = args;
 });
-const { registerUser, verifyEmail } = require("../src/controllers/userController");
+const {
+    registerUser,
+    verifySignupOtp,
+    verifyEmail
+} = require("../src/controllers/userController");
 
 test("ingestion returns backend session metadata only after indexing is persisted", async () => {
     const repository = {
@@ -259,8 +301,10 @@ test("chat rejects a session that does not belong to the authenticated user", as
     assert.equal(aiPayload, undefined);
 });
 
-test("registration stores only a hashed verification token and does not sign in", async () => {
+test("signup creates no account until its emailed OTP is verified", async () => {
     sentEmail = undefined;
+    userModel.createdUsers.length = 0;
+    userModel.pendingSignup = null;
     const response = createResponse();
 
     await registerUser(
@@ -274,14 +318,35 @@ test("registration stores only a hashed verification token and does not sign in"
         response
     );
 
-    const verificationUrl = sentEmail[2].match(/https?:\/\/\S+/)[0];
-    const token = new URL(verificationUrl).searchParams.get("token");
-    const expectedHash = createHash("sha256").update(token).digest("hex");
+    const otp = sentEmail[2].match(/\b\d{6}\b/)[0];
+    const expectedHash = createHash("sha256").update(otp).digest("hex");
 
     assert.equal(response.statusCode, 201);
-    assert.equal(userModel.savedVerification[1], expectedHash);
-    assert.notEqual(userModel.savedVerification[1], token);
+    assert.equal(userModel.pendingSignup.otp_hash, expectedHash);
+    assert.equal(userModel.createdUsers.length, 0);
     assert.equal(response.cookies.length, 0);
+
+    const invalidResponse = createResponse();
+    await verifySignupOtp(
+        {
+            body: {
+                email: "test@example.com",
+                otp: otp === "000000" ? "000001" : "000000"
+            }
+        },
+        invalidResponse
+    );
+    assert.equal(invalidResponse.statusCode, 401);
+    assert.equal(userModel.createdUsers.length, 0);
+
+    const verifiedResponse = createResponse();
+    await verifySignupOtp(
+        { body: { email: "TEST@example.com", otp } },
+        verifiedResponse
+    );
+    assert.equal(verifiedResponse.statusCode, 201);
+    assert.equal(userModel.createdUsers.length, 1);
+    assert.equal(userModel.pendingSignup, null);
 });
 
 test("email verification accepts a token once and rejects invalid, expired, or reused tokens", async () => {

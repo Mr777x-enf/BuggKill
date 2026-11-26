@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, LoaderCircle } from "lucide-react";
 import { authRequest } from "@/lib/auth-api";
 
-type GateState = "checking" | "unauthenticated" | "unavailable";
+type GateState =
+  | "checking"
+  | "authenticated"
+  | "unauthenticated"
+  | "unavailable";
 
 export default function LandingAuthGate({
   children,
@@ -24,7 +28,7 @@ export default function LandingAuthGate({
         if (!active) return;
 
         if (response.ok) {
-          router.replace("/chat");
+          setState("authenticated");
           return;
         }
 
@@ -44,7 +48,7 @@ export default function LandingAuthGate({
     };
   }, [attempt, router]);
 
-  if (state === "unauthenticated") return children;
+  if (state === "authenticated" || state === "unauthenticated") return children;
 
   if (state === "unavailable") {
     return (

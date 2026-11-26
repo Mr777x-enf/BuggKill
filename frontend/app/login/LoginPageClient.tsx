@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   Bug,
   Eye,
@@ -17,7 +17,6 @@ import { postAuthRequest } from "@/lib/auth-api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -53,8 +52,7 @@ export default function LoginPage() {
       );
 
       setSuccess(true);
-      const repo = searchParams.get("repo");
-      router.replace(repo ? `/chat?repo=${encodeURIComponent(repo)}` : "/chat");
+      router.replace("/");
       router.refresh();
     } catch (requestError) {
       setError(
