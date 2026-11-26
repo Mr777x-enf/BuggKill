@@ -52,8 +52,7 @@ export default function LoginPage() {
       );
 
       setSuccess(true);
-      router.replace("/");
-      router.refresh();
+      router.replace("/chat");
     } catch (requestError) {
       setError(
         requestError instanceof Error

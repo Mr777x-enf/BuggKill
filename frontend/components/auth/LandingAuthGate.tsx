@@ -7,7 +7,6 @@ import { authRequest } from "@/lib/auth-api";
 
 type GateState =
   | "checking"
-  | "authenticated"
   | "unauthenticated"
   | "unavailable";
 
@@ -28,7 +27,7 @@ export default function LandingAuthGate({
         if (!active) return;
 
         if (response.ok) {
-          setState("authenticated");
+          router.replace("/chat");
           return;
         }
 
@@ -48,7 +47,7 @@ export default function LandingAuthGate({
     };
   }, [attempt, router]);
 
-  if (state === "authenticated" || state === "unauthenticated") return children;
+  if (state === "unauthenticated") return children;
 
   if (state === "unavailable") {
     return (
