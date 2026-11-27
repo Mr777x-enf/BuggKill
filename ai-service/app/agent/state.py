@@ -11,8 +11,4 @@ class AgentState(TypedDict):
     context: str
 
     analysis: str
-    proposed_fix: str
-
-    attempt: int
-    status: str
     conversation_history: list[dict[str, str]]

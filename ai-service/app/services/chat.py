@@ -22,9 +22,6 @@ async def process_chat(
         "chunks": [],
         "context": "",
         "analysis": "",
-        "proposed_fix": "",
-        "attempt": 0,
-        "status": "started",
         "conversation_history": conversation_history or [],
     }
     config = {
@@ -38,7 +35,6 @@ async def process_chat(
     return {
         "session_id": session_id,
         "answer": final_state["analysis"],
-        "proposed_fix": final_state["proposed_fix"],
         "sources": [
             {
                 "file_path": chunk["file_path"],
