@@ -39,7 +39,7 @@ if (isProduction) {
 
     connectionString = databaseUrl.toString();
     ssl = {
-        rejectUnauthorized: true
+        rejectUnauthorized: false   // Supabase pooler uses a self-signed CA not in Node.js defaults
     };
 } else {
     ssl = {
