@@ -1,6 +1,5 @@
 
 const path = require("path");
-const fs = require("fs");
 const { Pool } = require("pg");
 
 // Load local .env only during development
@@ -27,16 +26,6 @@ if (isProduction) {
         );
     }
 
-    const caPath = process.env.SUPABASE_DB_CA_CERT_PATH;
-    if (!caPath) {
-        throw new Error("Missing SUPABASE_DB_CA_CERT_PATH environment variable");
-    }
-
-    const ca = fs.readFileSync(caPath, "utf8");
-    if (!ca.includes("-----BEGIN CERTIFICATE-----")) {
-        throw new Error("Supabase database CA file is not a PEM certificate");
-    }
-
     for (const parameter of [
         "ssl",
         "sslmode",
@@ -50,7 +39,6 @@ if (isProduction) {
 
     connectionString = databaseUrl.toString();
     ssl = {
-        ca,
         rejectUnauthorized: true
     };
 } else {
