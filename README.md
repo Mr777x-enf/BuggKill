@@ -11,7 +11,7 @@ The project has three separate applications: a Next.js frontend, an Express back
 3. The AI service clones the repository, records the commit SHA, parses supported source files with Tree-sitter, and splits large files into chunks.
 4. Gemini creates an embedding for each chunk. The AI service saves the source, metadata, and embedding in PostgreSQL.
 5. When you ask a question, the backend checks that the session belongs to you and that indexing finished, then sends the question and commit SHA to the AI service.
-6. The AI service searches that repository and commit using vector search and BM25, combines the rankings, and reranks candidates with a CrossEncoder before asking Gemini to answer.
+6. The AI service searches that repository and commit using vector search and BM25, combines the rankings, and asks Gemini to answer using the retrieved code.
 7. The backend saves the question and answer. The frontend displays them and lets you return to, rename, or delete chat sessions.
 
 The frontend talks to the Express backend. The backend handles accounts, repository sessions, and chat history, and passes indexing and chat requests to the AI service. The AI service does not replace the backend's user or chat APIs.
@@ -91,12 +91,9 @@ DB_USER=bugdady
 DB_PASSWORD=choose-a-local-password
 DB_NAME=bugdady
 
-# Optional; the service has a default chat model and CrossEncoder model.
+# Optional; the service has a default chat model.
 GEMINI_CHAT_MODEL=your-supported-gemini-chat-model
-CROSS_ENCODER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
 ```
-
-The CrossEncoder model is downloaded the first time it is needed unless it is already cached locally.
 
 ### `frontend/.env.local`
 
@@ -196,7 +193,7 @@ cd ai-service
 ## A few notes
 
 - The backend only accepts HTTPS GitHub repository URLs for ingestion. The AI service clones the repository's current commit and keeps its SHA with the indexed chunks.
-- Vector search and BM25 are both scoped to the repository and commit selected for the chat. The CrossEncoder reranks those candidates; Gemini still handles embeddings and answer generation.
-- The AI service uses CPU for CrossEncoder inference. The initial model download and reranking add startup/network requirements and per-question latency.
+- Vector search and BM25 are both scoped to the repository and commit selected for the chat. Gemini handles embeddings and answer generation.
+- Chat retrieval combines vector search and BM25 rankings without loading a separate machine-learning reranker.
 - BM25 currently reads the selected repository and commit's chunks to build its search corpus for a query. This keeps the database schema simple, but may need a persisted lexical index if repositories become large.
 - The Express API exposes the application routes under `/api`; the AI service exposes its chat and ingestion routes under `/api/chat/` and `/api/ingest/`.

@@ -34,7 +34,6 @@ pgvector==0.5.1
 
 # Hybrid retrieval and reranking
 rank-bm25==0.2.2
-sentence-transformers==4.1.0
 
 # LLM + embeddings
 google-genai==2.29.0

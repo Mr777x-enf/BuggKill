@@ -1,10 +1,5 @@
 
-import asyncio
-import logging
-import math
-import os
 import re
-from threading import Lock
 from typing import Any
 
 from rank_bm25 import BM25Okapi
@@ -13,14 +8,8 @@ from langsmith import traceable
 from app.llm.db.connection import get_db
 
 
-logger = logging.getLogger(__name__)
-
 _RRF_K = 60
 _TOKEN_PATTERN = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\b)|\d+")
-_DEFAULT_CROSS_ENCODER = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
-_cross_encoder: Any | None = None
-_cross_encoder_lock = Lock()
 
 
 def _tokenize(text: str) -> list[str]:
@@ -95,95 +84,6 @@ def _fuse_rankings(
     )
 
     return [chunks_by_id[chunk_id] for chunk_id in ranked_ids]
-
-
-@traceable(name="initialize_cross_encoder", run_type="chain")
-def _get_cross_encoder() -> Any:
-    global _cross_encoder
-
-    if _cross_encoder is None:
-        with _cross_encoder_lock:
-            if _cross_encoder is None:
-                try:
-                    from sentence_transformers import CrossEncoder
-
-                    model_name = os.getenv(
-                        "CROSS_ENCODER_MODEL",
-                        _DEFAULT_CROSS_ENCODER,
-                    )
-
-                    _cross_encoder = CrossEncoder(
-                        model_name,
-                        device="cpu",
-                    )
-
-                except Exception as exc:
-                    logger.exception(
-                        "Failed to initialize CrossEncoder model"
-                    )
-                    raise RuntimeError(
-                        "CrossEncoder model initialization failed"
-                    ) from exc
-
-    return _cross_encoder
-
-
-@traceable(name="cross_encoder_reranking", run_type="chain")
-def _rerank_with_cross_encoder(
-    query: str,
-    chunks: list[dict[str, Any]],
-    limit: int,
-) -> list[dict[str, Any]]:
-
-    if not chunks or not query.strip():
-        return chunks[:limit]
-
-    pairs = [
-        (
-            query,
-            " ".join(
-                (
-                    chunk.get("file_path") or "",
-                    chunk.get("symbol_name") or "",
-                    chunk.get("source") or "",
-                )
-            ),
-        )
-        for chunk in chunks
-    ]
-
-    try:
-        scores = _get_cross_encoder().predict(
-            pairs,
-            batch_size=32,
-            show_progress_bar=False,
-        )
-
-        if len(scores) != len(chunks):
-            raise ValueError(
-                f"Expected {len(chunks)} CrossEncoder scores, got {len(scores)}"
-            )
-
-        numeric_scores = [float(score) for score in scores]
-
-        if not all(math.isfinite(score) for score in numeric_scores):
-            raise ValueError(
-                "CrossEncoder returned a non-finite score"
-            )
-
-        ranked = sorted(
-            zip(numeric_scores, chunks),
-            key=lambda item: item[0],
-            reverse=True,
-        )
-
-    except Exception as exc:
-        logger.exception("CrossEncoder inference failed")
-        raise RuntimeError(
-            "CrossEncoder reranking failed"
-        ) from exc
-
-    return [chunk for _score, chunk in ranked[:limit]]
 
 
 @traceable(
@@ -275,7 +175,7 @@ async def search_similar_chunks(
     query_text: str = "",
 ) -> list[dict[str, Any]]:
     """
-    Retrieve hybrid vector/BM25 candidates and rerank them with a CrossEncoder.
+    Retrieve hybrid vector/BM25 candidates and combine their rankings.
     """
 
     if not query_embedding:
@@ -326,11 +226,5 @@ async def search_similar_chunks(
         bm25_chunks,
     )
 
-    # 4. CrossEncoder reranking
-    return await asyncio.to_thread(
-        _rerank_with_cross_encoder,
-        query_text,
-        candidates,
-        limit,
-    )
+    return candidates[:limit]
 
