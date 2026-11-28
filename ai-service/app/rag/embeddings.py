@@ -13,7 +13,7 @@ load_dotenv(
 )
 
 
-EMBEDDING_MODEL = "gemini-embedding-2"
+EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIMENSION = 1536
 DEFAULT_BATCH_SIZE = 100
 
